@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Labor Roads - Presale</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Solana Web3 CDN -->
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+</head>
+<body class="bg-gray-950 text-white min-h-screen flex flex-col items-center justify-between p-4">
+
+  <!-- Header -->
+  <header class="w-full max-w-4xl flex justify-between items-center py-4 border-b border-gray-800">
+    <h1 class="text-2xl font-black tracking-wider text-purple-500">LABOR ROADS</h1>
+    <button id="connectBtn" onclick="connectWallet()" class="bg-purple-600 hover:bg-purple-700 px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-lg shadow-purple-900/30">
+      Connect Phantom
+    </button>
+  </header>
+
+  <!-- Main Section -->
+  <main class="w-full max-w-md bg-gray-900 border border-gray-800 p-6 rounded-3xl shadow-2xl my-auto text-center">
+    <div class="inline-block px-3 py-1 bg-purple-500/10 text-purple-400 text-xs font-semibold rounded-full mb-3 border border-purple-500/20">
+      Phase 1 Presale Active
+    </div>
+    
+    <h2 class="text-2xl font-bold mb-2">Buy Game Pass</h2>
+    <p class="text-gray-400 text-xs mb-6">Connect your Phantom wallet to secure tokens and exclusive vehicle NFTs.</p>
+
+    <!-- Wallet Info Box -->
+    <div id="walletStatus" class="text-[11px] text-gray-500 mb-4 bg-gray-950/60 p-2.5 rounded-xl border border-gray-800/80 break-all">
+      Status: Wallet Not Connected
+    </div>
+
+    <!-- Amount Selection -->
+    <div class="mb-5 text-left">
+      <label class="text-xs text-gray-400 mb-1.5 block font-medium">Deposit Amount (SOL):</label>
+      <input type="number" id="solAmount" value="0.1" step="0.05" min="0.01" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-white font-mono text-sm outline-none focus:border-purple-500 transition">
+    </div>
+
+    <!-- Payment Button -->
+    <button id="buyBtn" onclick="sendSol()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3.5 rounded-xl font-bold transition shadow-lg shadow-emerald-900/40 text-sm">
+      Send Funds / Buy Now
+    </button>
+
+    <!-- Response / Status Messages -->
+    <div id="statusMessage" class="mt-4 text-xs font-mono"></div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="text-gray-600 text-xs py-4">
+    Labor Roads &copy; 2026. Powered by Solana & Helius.
+  </footer>
+
+  <script>
+    // Configured Addresses
+    const RECEIVER_WALLET = "EVy9nLTdtrGiNfS6oAvDbE2q1E9jrnqi2F9n8fohuAd8";
+    const HELIUS_RPC = "https://mainnet.helius-rpc.com/?api-key=229a2e7d-35f8-4bc5-9467-f6fb0a5b533d";
+    
+    // Setup Solana Connection using Helius RPC
+    const connection = new solanaWeb3.Connection(HELIUS_RPC, "confirmed");
+    let provider = null;
+
+    // Detect Phantom Provider
+    function getProvider() {
+      if ("phantom" in window) {
+        const p = window.phantom?.solana;
+        if (p?.isPhantom) return p;
+      }
+      return null;
+    }
+
+    // Connect Phantom Wallet
+    async function connectWallet() {
+      provider = getProvider();
+      if (!provider) {
+        alert("Phantom Wallet نہیں ملا! براہ کرم یہ ویب سائٹ Phantom ایپ کے براؤزر میں کھولیں۔");
+        return;
+      }
+      try {
+        const resp = await provider.connect();
+        const address = resp.publicKey.toString();
+        document.getElementById("connectBtn").innerText = address.slice(0, 4) + "..." + address.slice(-4);
+        document.getElementById("walletStatus").innerText = "Connected: " + address;
+        document.getElementById("statusMessage").innerHTML = "<span class='text-emerald-400'>والٹ کامیابی سے کنیکٹ ہو گیا ہے۔</span>";
+      } catch (err) {
+        console.error(err);
+        document.getElementById("statusMessage").innerHTML = "<span class='text-red-400'>والٹ کنکشن منسوخ ہو گیا۔</span>";
+      }
+    }
+
+    // Send SOL to Receiver
+    async function sendSol() {
+      provider = getProvider();
+      if (!provider || !provider.publicKey) {
+        alert("پہلے اپنا فینٹم والٹ کنیکٹ کریں۔");
+        return;
+      }
+
+      const amountInput = document.getElementById("solAmount").value;
+      const solAmount = parseFloat(amountInput);
+      if (isNaN(solAmount) || solAmount <= 0) {
+        alert("درست رقم درج کریں۔");
+        return;
+      }
+
+      const statusBox = document.getElementById("statusMessage");
+      statusBox.innerHTML = "<span class='text-yellow-400'>ٹرانزیکشن جاری ہے، اپنے والٹ سے منظور (Approve) کریں...</span>";
+
+      try {
+        const fromPubkey = provider.publicKey;
+        const toPubkey = new solanaWeb3.PublicKey(RECEIVER_WALLET);
+        const lamports = Math.round(solAmount * solanaWeb3.LAMPORTS_PER_SOL);
+
+        // Build Transfer Instruction
+        const transaction = new solanaWeb3.Transaction().add(
+          solanaWeb3.SystemProgram.transfer({
+            fromPubkey: fromPubkey,
+            toPubkey: toPubkey,
+            lamports: lamports,
+          })
+        );
+
+        // Fetch Latest Blockhash from Helius
+        const { blockhash } = await connection.getLatestBlockhash();
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = fromPubkey;
+
+        // Sign and Send Transaction
+        const { signature } = await provider.signAndSendTransaction(transaction);
+        
+        statusBox.innerHTML = `<span class='text-emerald-400'>ادائیگی کامیاب ہو گئی!<br><a href="https://solscan.io/tx/${signature}" target="_blank" class="underline text-purple-400">Solscan پر ٹرانزیکشن دیکھیں</a></span>`;
+      } catch (error) {
+        console.error(error);
+        statusBox.innerHTML = `<span class='text-red-400'>خرابی: ${error.message || "ٹرانزیکشن نامکمل رہی"}</span>`;
+      }
+    }
+  </script>
+</body>
+</html>
